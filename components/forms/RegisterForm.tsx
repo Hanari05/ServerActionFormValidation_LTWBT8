@@ -45,7 +45,7 @@ export function RegisterForm() {
           id="username"
           type="text"
           autoComplete="username"
-          placeholder="JiroVipPro123"
+          placeholder="HanaPro123"
           aria-invalid={Boolean(errors.username)}
           aria-describedby={errors.username ? "username-error" : "username-hint"}
           {...register("username")}

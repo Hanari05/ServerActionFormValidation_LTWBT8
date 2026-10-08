@@ -16,6 +16,9 @@ export default function LoginPage() {
       <p className="auth-switch">
         Chưa có tài khoản? <Link href="/register">Đăng ký</Link>
       </p>
+      <p className="auth-switch">
+        <Link href="/feedback">Góp ý khách hàng</Link>
+      </p>
     </>
   );
 }
