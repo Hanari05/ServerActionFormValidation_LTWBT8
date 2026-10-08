@@ -1,6 +1,7 @@
 "use server";
 
 import type { FormActionState } from "@/lib/types/forms";
+import { insertFeedback } from "@/lib/data/feedback";
 import { feedbackSchema } from "@/lib/validations/feedback";
 
 export async function submitFeedbackAction(
@@ -12,6 +13,15 @@ export async function submitFeedbackAction(
     return {
       status: "error",
       fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  try {
+    await insertFeedback(parsed.data);
+  } catch {
+    return {
+      status: "error",
+      formError: "Không thể lưu góp ý lúc này. Vui lòng thử lại.",
     };
   }
 

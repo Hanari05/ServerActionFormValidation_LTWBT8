@@ -33,4 +33,13 @@ CREATE INDEX posts_feed_idx ON posts (created_at DESC, id DESC);
 CREATE INDEX posts_author_idx ON posts (author_id);
 CREATE INDEX sessions_user_idx ON sessions (user_id);
 
+CREATE TABLE feedbacks (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  content TEXT NOT NULL,
+  phone VARCHAR(16) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT feedbacks_content_nonempty CHECK (length(btrim(content)) > 0),
+  CONSTRAINT feedbacks_phone_format CHECK (phone ~ '^(0|\+?84)[0-9]{9,10}$')
+);
+
 COMMIT;

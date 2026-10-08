@@ -37,7 +37,13 @@ export function FeedbackForm() {
     setFormError(undefined);
     setFormSuccess(undefined);
 
-    const result = await submitFeedbackAction(values);
+    let result;
+    try {
+      result = await submitFeedbackAction(values);
+    } catch {
+      setFormError("Không thể gửi góp ý lúc này. Vui lòng thử lại.");
+      return;
+    }
 
     for (const [field, messages] of Object.entries(result.fieldErrors ?? {})) {
       if (field in values && messages[0]) {
@@ -56,7 +62,10 @@ export function FeedbackForm() {
   }
 
   return (
-    <form className="stack-form" onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form className="stack-form" onSubmit={handleSubmit(onSubmit, () => {
+      setFormSuccess(undefined);
+      setFormError(undefined);
+    })} noValidate>
       <FormAlert message={formError} />
       <FormAlert message={formSuccess} variant="success" />
 
@@ -97,7 +106,7 @@ export function FeedbackForm() {
           {...register("phone")}
         />
         <p id="feedback-phone-hint" className="field-hint">
-          Số di động Việt Nam, ví dụ 0912345678 hoặc +84912345678.
+          Số di động hoặc điện thoại bàn Việt Nam, ví dụ 0912345678, +84912345678 hoặc 02412345678.
         </p>
         {errors.phone && (
           <p id="feedback-phone-error" className="field-error">

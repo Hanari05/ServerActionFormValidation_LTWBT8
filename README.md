@@ -17,7 +17,7 @@ Bài làm xây dựng form **Góp ý khách hàng** trên nền ứng dụng **N
 | Form "Góp ý khách hàng" | Trang `/feedback`, có link từ trang đăng nhập | Hoàn thành |
 | Dùng Zod | `feedbackSchema` trong `lib/validations/feedback.ts` | Hoàn thành |
 | "Nội dung" trên 20 ký tự | Tối thiểu 21 ký tự, báo lỗi nếu ngắn hơn | Hoàn thành |
-| "Số điện thoại" đúng định dạng VN | Regex số di động Việt Nam, có chuẩn hóa dữ liệu nhập | Hoàn thành |
+| "Số điện thoại" đúng định dạng VN | Regex số di động và cố định Việt Nam, có chuẩn hóa dữ liệu nhập | Hoàn thành |
 | Hiển thị thông báo lỗi trên form | Lỗi hiện ngay dưới từng ô nhập | Hoàn thành |
 | Validate phía server | Server Action gọi lại `safeParse` | Hoàn thành |
 
@@ -28,20 +28,23 @@ Bài làm xây dựng form **Góp ý khách hàng** trên nền ứng dụng **N
 - Không được để trống (khoảng trắng đầu/cuối bị bỏ trước khi kiểm tra).
 - Phải **trên 20 ký tự** (tối thiểu 21). Nhập đúng 20 ký tự vẫn bị báo lỗi.
 - Tối đa 1000 ký tự.
-- Văn bản được chuẩn hóa Unicode (NFC) và đếm theo ký tự hiển thị, nên chữ tiếng Việt có dấu và emoji đều được đếm là 1 ký tự.
+- Văn bản được chuẩn hóa Unicode (NFC), bỏ khoảng trắng đầu/cuối và đếm theo cụm ký tự hiển thị (*grapheme*) bằng `Intl.Segmenter`. Chữ có dấu, emoji màu da (`👍🏽`), cờ (`🇻🇳`) và emoji gia đình (`👨‍👩‍👧‍👦`) mỗi cụm được tính là 1 ký tự; bộ đếm và schema dùng cùng quy tắc.
 
 ### Trường "Số điện thoại"
 
 - Không được để trống.
-- Chỉ nhận số **di động** Việt Nam, một trong các dạng `0xxxxxxxxx`, `84xxxxxxxxx` hoặc `+84xxxxxxxxx`.
-- Đầu số hợp lệ: `03x`, `05x`, `07x`, `08x`, `09x`.
+- Nhận số **di động và cố định** Việt Nam, dùng đầu `0`, `84` hoặc `+84`. Dạng quốc tế bỏ số `0` đầu.
+- Số di động có 10 chữ số ở dạng trong nước, kiểm tra các đầu số trong regex của schema.
+- Số cố định có 11 chữ số ở dạng trong nước: `024`/`028` + 8 chữ số, hoặc mã vùng tỉnh 4 chữ số gồm `0` đầu + 7 chữ số thuê bao. Ví dụ: `02412345678`, `02031234567`, `+842412345678`.
 - Cho phép nhập có dấu cách, dấu chấm hoặc gạch ngang, ví dụ `0912 345 678`. Schema chuẩn hóa về `0912345678` trước khi Server Action nhận dữ liệu.
-- Số điện thoại bàn (`02x`) chưa được hỗ trợ.
+- Danh sách mã vùng cố định tham chiếu [thông cáo của Bộ Khoa học và Công nghệ](https://mst.gov.vn/thong-cao-bao-chi-ve-viec-thuc-hien-quy-hoach-ma-vung-dien-thoai-co-dinh-mat-dat-ke-tu-01-7-2025-197250704101929995.htm), gồm các mã vùng được sử dụng song song sau sắp xếp tỉnh. Validation kiểm tra định dạng, không xác minh thuê bao đang hoạt động.
 
-Regex sử dụng (áp dụng sau khi bỏ dấu cách, dấu chấm, gạch ngang):
+Regex sử dụng (áp dụng sau khi bỏ dấu cách, dấu chấm, gạch ngang; danh sách `landlineAreaCodes` nằm trong `lib/validations/feedback.ts`):
 
 ```ts
-/^(?:0|\+?84)(?:3[2-9]|5[25689]|7[06-9]|8[1-9]|9[0-46-9])\d{7}$/
+new RegExp(
+  `^(?:0|\\+?84)(?:(?:3[2-9]|5[25689]|7[06-9]|8[1-9]|9[0-46-9])\\d{7}|(?:24|28)\\d{8}|(?:${landlineAreaCodes})\\d{7})$`,
+)
 ```
 
 ### Thông báo lỗi
@@ -58,11 +61,12 @@ Regex sử dụng (áp dụng sau khi bỏ dấu cách, dấu chấm, gạch nga
 
 Form dùng **cùng một schema Zod** cho hai lớp kiểm tra:
 
-1. **Client:** `react-hook-form` kết hợp `zodResolver(feedbackSchema)`. Form kiểm tra khi người dùng rời khỏi ô (`onBlur`) và kiểm tra lại mỗi lần gõ sau đó (`onChange`). Form có `noValidate` nên thông báo lỗi đến từ Zod, không phải từ trình duyệt.
+1. **Client:** `react-hook-form` kết hợp `zodResolver(feedbackSchema)`. Form kiểm tra khi người dùng rời khỏi ô hoặc gửi form; sau khi gửi, trường có lỗi được kiểm tra lại khi thay đổi. Form có `noValidate` nên thông báo lỗi đến từ Zod, không phải từ trình duyệt.
 2. **Server:** `submitFeedbackAction` nhận `input: unknown` và gọi `feedbackSchema.safeParse(input)`. Không tin dữ liệu từ client vì người dùng có thể bỏ qua giao diện và gọi action trực tiếp. Nếu sai, action trả về `{ status: "error", fieldErrors }`; form gắn lỗi vào đúng ô bằng `setError`.
-3. **Thành công:** action trả về `{ status: "success", formSuccess }`, form hiện thông báo thành công và xóa nội dung đã nhập.
+3. **Lưu dữ liệu:** action gọi `insertFeedback(parsed.data)` và insert nội dung, số điện thoại đã chuẩn hóa vào PostgreSQL bằng query có tham số `$1`, `$2`. Nếu database không kết nối được hoặc chưa có bảng, form báo lỗi và giữ nội dung để thử lại.
+4. **Thành công:** chỉ sau khi insert thành công, action trả về `{ status: "success", formSuccess }`, form hiện thông báo thành công và xóa nội dung đã nhập. Lỗi kết nối gửi action cũng được hiển thị trên form.
 
-Dữ liệu góp ý hiện **chưa được lưu vào database** vì đề bài chỉ yêu cầu kiểm tra dữ liệu. Muốn lưu, thêm bảng `feedbacks` vào `sql/schema.sql` rồi insert `parsed.data` trong `submitFeedbackAction`.
+Dữ liệu góp ý được lưu trong bảng `feedbacks`: `id`, `content`, `phone`, `created_at`. Bảng độc lập với tài khoản nên không cần đăng nhập để gửi góp ý.
 
 ## 5. Các file liên quan
 
@@ -70,6 +74,9 @@ Dữ liệu góp ý hiện **chưa được lưu vào database** vì đề bài 
 |---|---|
 | `lib/validations/feedback.ts` | Schema Zod `feedbackSchema`, regex số điện thoại, hàm chuẩn hóa nội dung và số điện thoại |
 | `app/actions/feedback.ts` | Server Action `submitFeedbackAction`, validate lại ở server |
+| `lib/data/feedback.ts` | Lưu góp ý bằng parameterized query |
+| `sql/feedback.sql` | Tạo bảng góp ý trên database hiện có, có thể chạy lại |
+| `scripts/test-feedback.cjs` | Kiểm thử Zod và Server Action, mô phỏng lỗi database |
 | `components/forms/FeedbackForm.tsx` | Form dùng react-hook-form, hiển thị lỗi từng ô và bộ đếm ký tự |
 | `app/(auth)/feedback/page.tsx` | Trang `/feedback` |
 | `app/(auth)/login/page.tsx` | Thêm liên kết "Góp ý khách hàng" |
@@ -88,12 +95,18 @@ Yêu cầu: Node.js 20 trở lên, Docker (cho PostgreSQL).
    Get-Content -Raw .\sql\schema.sql | docker compose --env-file .env.local exec -T postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
    ```
 
+   Nếu database đã có các bảng cũ, chỉ chạy migration góp ý, không chạy lại toàn bộ `schema.sql`:
+
+   ```powershell
+   Get-Content -Raw .\sql\feedback.sql | docker compose --env-file .env.local exec -T postgres sh -lc 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+   ```
+
 4. Cài dependency: `npm ci`.
 5. Chạy ứng dụng: `npm run dev`, sau đó mở `http://localhost:3000/feedback`.
 
-Kiểm tra mã nguồn: `npm run typecheck` và `npm run lint`.
+Kiểm tra mã nguồn: `npm run test:feedback`, `npm run typecheck`, `npm run lint` và `npm run build`.
 
-> Trang `/feedback` không truy cập database nên vẫn hiển thị khi chưa cấu hình PostgreSQL. Các trang đăng nhập, đăng ký và feed thì cần database.
+> Trang `/feedback` và validation phía client vẫn hiển thị khi chưa cấu hình PostgreSQL. Gửi góp ý hợp lệ cần `DATABASE_URL` và bảng `feedbacks`; thiếu cấu hình thì form báo lỗi lưu dữ liệu, không báo thành công.
 
 ## 7. Kết quả kiểm tra
 
@@ -107,6 +120,8 @@ Truy cập `/feedback` và nhập lần lượt các giá trị dưới đây.
 | `Quá ngắn` | Lỗi: Nội dung góp ý phải trên 20 ký tự. |
 | `aaaaaaaaaaaaaaaaaaaa` (đúng 20 ký tự) | Lỗi: Nội dung góp ý phải trên 20 ký tự. |
 | `aaaaaaaaaaaaaaaaaaaaa` (21 ký tự) | Hợp lệ |
+| `👍🏽` hoặc `👨‍👩‍👧‍👦` lặp 20 lần | Lỗi: Nội dung góp ý phải trên 20 ký tự. |
+| `👍🏽` hoặc `👨‍👩‍👧‍👦` lặp 21 lần | Hợp lệ, bộ đếm hiển thị 21 |
 | `Dịch vụ rất tốt, nhân viên nhiệt tình!` | Hợp lệ |
 
 ### Trường "Số điện thoại"
@@ -123,14 +138,25 @@ Truy cập `/feedback` và nhập lần lượt các giá trị dưới đây.
 | `0912345678` | Hợp lệ |
 | `091 234 5678`, `0912.345.678`, `0912-345-678` | Hợp lệ (chuẩn hóa về `0912345678`) |
 | `+84912345678`, `84912345678` | Hợp lệ |
+| `02412345678`, `02812345678`, `02031234567` | Hợp lệ (số cố định) |
+| `+842412345678`, `842812345678`, `+842031234567` | Hợp lệ (số cố định dạng quốc tế) |
+| `0241234567`, `024123456789`, `02001234567` | Lỗi: thiếu/thừa số hoặc mã vùng không hợp lệ |
 
 ### Hình ảnh minh họa
 
-*(Chèn ảnh chụp màn hình các trường hợp trên, ví dụ:)*
+Ảnh chụp từ ứng dụng chạy thực tế:
 
-- `docs/nhap-sai-noi-dung.png`: nội dung 20 ký tự bị báo lỗi.
-- `docs/nhap-sai-so-dien-thoai.png`: số điện thoại sai định dạng bị báo lỗi.
-- `docs/gui-thanh-cong.png`: gửi thành công với dữ liệu hợp lệ.
+![Nội dung 20 ký tự bị báo lỗi](docs/nhap-sai-noi-dung.png)
+
+![Số điện thoại sai định dạng bị báo lỗi](docs/nhap-sai-so-dien-thoai.png)
+
+![Gửi góp ý và lưu dữ liệu thành công](docs/gui-thanh-cong.png)
+
+### Kiểm thử tự động
+
+`npm run test:feedback` chạy 48 kiểm tra với schema Zod thật: nội dung rỗng, mốc 20/21 và 1000/1001 ký tự, Unicode/emoji ghép, số di động/cố định trong nước và quốc tế, lỗi từng trường và validation lại tại Server Action. Bộ test mô phỏng tầng database để xác nhận chỉ lưu dữ liệu hợp lệ, chuẩn hóa dữ liệu trước khi lưu và không báo thành công khi insert thất bại.
+
+Ngày 08/10/2026: 48 kiểm tra, typecheck, lint và build đều qua. Đã kiểm tra form production trên Edge, đọc lại bản ghi sau khi gửi và thử lỗi database bằng PostgreSQL/WASM (PGlite). Xem [báo cáo kiểm tra và giới hạn môi trường](docs/KIEM_TRA.md).
 
 ## 8. Cấu trúc dự án
 
