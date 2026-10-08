@@ -94,8 +94,6 @@ Yêu cầu: Node.js 20 trở lên, Docker (cho PostgreSQL).
 Kiểm tra mã nguồn: `npm run typecheck` và `npm run lint`.
 
 > Trang `/feedback` không truy cập database nên vẫn hiển thị khi chưa cấu hình PostgreSQL. Các trang đăng nhập, đăng ký và feed thì cần database.
->
-> Không đưa nội dung `.env.local` vào Git hoặc file nộp bài.
 
 ## 7. Kết quả kiểm tra
 
